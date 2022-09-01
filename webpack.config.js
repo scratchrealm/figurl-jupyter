@@ -23,48 +23,48 @@ module.exports = [
    * This bundle only contains the part of the JavaScript that is run on load of
    * the notebook.
    */
-  // {
-  //   entry: './src/extension.ts',
-  //   output: {
-  //     filename: 'index.js',
-  //     path: path.resolve(__dirname, 'figurl_jupyter', 'nbextension'),
-  //     libraryTarget: 'amd',
-  //     publicPath: '',
-  //   },
-  //   module: {
-  //     rules: rules
-  //   },
-  //   devtool: 'source-map',
-  //   externals,
-  //   resolve,
-  // },
+  {
+    entry: './src/extension.ts',
+    output: {
+      filename: 'index.js',
+      path: path.resolve(__dirname, 'figurl_jupyter', 'nbextension'),
+      libraryTarget: 'amd',
+      publicPath: '',
+    },
+    module: {
+      rules: rules
+    },
+    devtool: 'source-map',
+    externals,
+    resolve,
+  },
 
-  // /**
-  //  * Embeddable figurl-jupyter bundle
-  //  *
-  //  * This bundle is almost identical to the notebook extension bundle. The only
-  //  * difference is in the configuration of the webpack public path for the
-  //  * static assets.
-  //  *
-  //  * The target bundle is always `dist/index.js`, which is the path required by
-  //  * the custom widget embedder.
-  //  */
-  // {
-  //   entry: './src/index.ts',
-  //   output: {
-  //       filename: 'index.js',
-  //       path: path.resolve(__dirname, 'dist'),
-  //       libraryTarget: 'amd',
-  //       library: "figurl-jupyter",
-  //       publicPath: 'https://unpkg.com/figurl-jupyter@' + version + '/dist/'
-  //   },
-  //   devtool: 'source-map',
-  //   module: {
-  //       rules: rules
-  //   },
-  //   externals,
-  //   resolve,
-  // },
+  /**
+   * Embeddable figurl-jupyter bundle
+   *
+   * This bundle is almost identical to the notebook extension bundle. The only
+   * difference is in the configuration of the webpack public path for the
+   * static assets.
+   *
+   * The target bundle is always `dist/index.js`, which is the path required by
+   * the custom widget embedder.
+   */
+  {
+    entry: './src/index.ts',
+    output: {
+        filename: 'index.js',
+        path: path.resolve(__dirname, 'dist'),
+        libraryTarget: 'amd',
+        library: "figurl-jupyter",
+        publicPath: 'https://unpkg.com/figurl-jupyter@' + version + '/dist/'
+    },
+    devtool: 'source-map',
+    module: {
+        rules: rules
+    },
+    externals,
+    resolve,
+  },
 
 
   /**

@@ -4,12 +4,12 @@
 import {
   DOMWidgetModel,
   DOMWidgetView,
-  ISerializers,
+  ISerializers
 } from '@jupyter-widgets/base';
 
 import React from 'react';
 import ReactDOM from 'react-dom';
-import TestWidget from './TestWidget';
+import FigureWidget from './FigureWidget';
 
 import { MODULE_NAME, MODULE_VERSION } from './version';
 
@@ -26,7 +26,8 @@ export class FigurlFigureModel extends DOMWidgetModel {
       _view_name: FigurlFigureModel.view_name,
       _view_module: FigurlFigureModel.view_module,
       _view_module_version: FigurlFigureModel.view_module_version,
-      value: 'Hello World',
+      view_uri: '',
+      data_uri: ''
     };
   }
 
@@ -47,18 +48,24 @@ export class FigurlFigureView extends DOMWidgetView {
   render() {
     this.el.classList.add('custom-widget')
 
-    this.value_changed()
-    this.model.on('change:value', this.value_changed, this)
+    this.onChange()
+    this.model.on('change:view_uri', this.onChange, this)
+    this.model.on('change:data_uri', this.onChange, this)
     
 
     // this.el.innerHTML = '<div style="position:absolute;width:300px;height:300px;background:green;" />'
-
-    const component = React.createElement(TestWidget, {model: this.model})
-
-    ReactDOM.render(component, this.el)
   }
 
-  value_changed() {
+  onChange() {
+    const viewUri = this.model.get('view_uri')
+    const dataUri = this.model.get('data_uri')
+    if ((viewUri) && (dataUri)) {
+      const component = React.createElement(FigureWidget, {model: this.model, viewUri, dataUri})
+      ReactDOM.render(component, this.el)
+    }
+    else {
+      this.el.innerHTML = '<h3>Waiting for widget properties</h3>'
+    }
     // this.el.innerHTML = `
     //   <iframe src="https://www.figurl.org/f?v=gs://figurl/draculus-1&d=sha1://2b9330656b2cf1993716cd615950754945ea16d0&project=lqhzprbdrq&hide=1&label=draculus%20sortingview%20example" />
     // `;

@@ -10,7 +10,6 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
     let queryParameters: QueryParameters = {}
 
     const setQueryParameters = async (q: QueryParameters) => {
-        console.log('--- setting query parameters', q)
         queryParameters = q
     }
 
@@ -24,7 +23,6 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
         if (msg.type === 'loadFileDataResponse') {
             const {fileData, uri} = msg
             const callbacks = loadFileDataCallbacks[uri]
-            console.log('--- callbacks', callbacks)
             if (callbacks) {
                 loadFileDataCallbacks[uri] = []
                 for (let cb of callbacks) {
@@ -38,7 +36,6 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
         model.send({type: 'loadFileDataRequest', uri}, () => {})
         return new Promise<any>((resolve, reject) => {
             onFileData(uri, (fileData: string) => {
-                console.log('---- got file data', fileData)
                 resolve(JSON.parse(fileData))
             })
         })
@@ -49,7 +46,6 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
     }
 
     const handleFigurlRequest = async (req: FigurlRequest): Promise<FigurlResponse | undefined> => {
-        console.log('---- handle figurl request', req)
         if (req.type === 'getFigureData') {
             if (!queryParameters.dataUri) throw Error('dataUri is not set in preload.ts')
             const figureData = await loadFileData(queryParameters.dataUri)

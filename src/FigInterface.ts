@@ -47,9 +47,9 @@ class FigInterface {
         })
         window.addEventListener('message', e => {
             const msg = e.data
-            console.log('-------------------- a', msg)
+            if (msg.figureId !== this.a.figureId) return
             if (isMessageToParent(msg)) {
-                console.log('-------------------- b', msg)
+                console.log('--- got message to parent', msg)
                 if (msg.type === 'figurlRequest') {
                     this.a.electronInterface.handleFigurlRequest(msg.request).then(resp => {
                         ;(async () => {
