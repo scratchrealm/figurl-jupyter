@@ -1,6 +1,6 @@
 * Remove the 'dev' entry in _version.py.
 
-* Update the version in package.json
+* No need to update in package.json and _frontend.py if we did that correctly last release
 
 * Git commit
 
