@@ -2,7 +2,9 @@ import { WidgetModel } from "@jupyter-widgets/base"
 import deserializeReturnValue from "./deserializeReturnValue"
 import { ElectronInterface } from "./FigInterface"
 import QueryParameters from "./QueryParameters"
-import { FigurlRequest, FigurlResponse } from "./viewInterface/FigurlRequestTypes"
+import randomAlphaString from "./util/randomAlphaString"
+import { FigurlRequest, FigurlResponse, InitiateTaskResponse } from "./viewInterface/FigurlRequestTypes"
+import { sha1OfObject, sha1OfString } from "./viewInterface/kacheryTypes"
 import { TaskJobStatus, TaskType } from "./viewInterface/MessageToChildTypes"
 
 const createElectronInterface = (model: WidgetModel): ElectronInterface => {
@@ -13,10 +15,19 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
         queryParameters = q
     }
 
-    const loadFileDataCallbacks: {[uri: string]: ((d: string) => void)[]} = {}
-    const onFileData = (uri: string, callback: (d: string) => void) => {
+    const taskStatusUpdateCallbacks: ((a: {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, errorMessage?: string}) => void)[] = []
+
+    const loadFileDataCallbacks: {[uri: string]: ((d: string | undefined) => void)[]} = {}
+    const onFileData = (uri: string, callback: (d: string | undefined) => void) => {
         if (!loadFileDataCallbacks[uri]) loadFileDataCallbacks[uri] = []
         loadFileDataCallbacks[uri].push(callback)
+    }
+    const loadTaskReturnValueCallbacks: {[key: string]: ((d: string | undefined) => void)[]} = {}
+    const onTaskReturnValue = (o: {taskName: string, taskJobId: string}, callback: (d: string | undefined) => void) => {
+        const {taskName, taskJobId} = o
+        const key = `${taskName}.${taskJobId}`
+        if (!loadTaskReturnValueCallbacks[key]) loadTaskReturnValueCallbacks[key] = []
+        loadTaskReturnValueCallbacks[key].push(callback)
     }
     model.on('msg:custom', msg => {
         console.info('Message from python', msg)
@@ -30,19 +41,42 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
                 }
             }
         }
+        else if (msg.type === 'loadTaskReturnValueResponse') {
+            const {data, taskName, taskJobId} = msg
+            const key = `${taskName}.${taskJobId}`
+            const callbacks = loadTaskReturnValueCallbacks[key]
+            if (callbacks) {
+                loadTaskReturnValueCallbacks[key] = []
+                for (let cb of callbacks) {
+                    cb(data)
+                }
+            }
+        }
+        else if (msg.type === 'taskStatusUpdate') {
+            const {taskType, taskName, taskJobId, status, error} = msg as {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, error: string | undefined}
+            for (let cb of taskStatusUpdateCallbacks) {
+                cb({taskType, taskName, taskJobId, status, errorMessage: error})
+            }
+        }
     })
 
     async function loadFileData(uri: string) {
         model.send({type: 'loadFileDataRequest', uri}, () => {})
-        return new Promise<any>((resolve, reject) => {
-            onFileData(uri, (fileData: string) => {
-                resolve(JSON.parse(fileData))
+        return new Promise<string | undefined>((resolve, reject) => {
+            onFileData(uri, (fileData: string | undefined) => {
+                resolve(fileData ? JSON.parse(fileData) : undefined)
             })
         })
-        
-        const ret =JSON.parse(`{"autocorrelograms":[{"binCounts":{"_type":"ndarray","data_b64":"AwAAAAUAAAACAAAAAgAAAAAAAAACAAAABQAAAAQAAAACAAAABAAAAAQAAAAEAAAABAAAAAQAAAAFAAAABgAAAAYAAAAKAAAABwAAAAkAAAAJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkAAAAJAAAABwAAAAoAAAAGAAAABgAAAAUAAAAEAAAABAAAAAQAAAAEAAAABAAAAAIAAAAEAAAABQAAAAIAAAAAAAAAAgAAAAIAAAAFAAAAAwAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":0},{"binCounts":{"_type":"ndarray","data_b64":"AQAAAAQAAAAEAAAAAQAAAAIAAAAFAAAABQAAAAMAAAAFAAAABAAAAAMAAAADAAAAAQAAAAYAAAADAAAABgAAAAIAAAAIAAAABQAAAAgAAAAOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAIAAAABQAAAAgAAAACAAAABgAAAAMAAAAGAAAAAQAAAAMAAAADAAAABAAAAAUAAAADAAAABQAAAAUAAAACAAAAAQAAAAQAAAAEAAAAAQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":1},{"binCounts":{"_type":"ndarray","data_b64":"AQAAAAQAAAACAAAABAAAAAcAAAAFAAAAAwAAAAMAAAADAAAABgAAAAUAAAAGAAAABAAAAAUAAAAIAAAAAwAAAAYAAAAFAAAABgAAAAkAAAAOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAJAAAABgAAAAUAAAAGAAAAAwAAAAgAAAAFAAAABAAAAAYAAAAFAAAABgAAAAMAAAADAAAAAwAAAAUAAAAHAAAABAAAAAIAAAAEAAAAAQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":2},{"binCounts":{"_type":"ndarray","data_b64":"BQAAAAMAAAABAAAABQAAAAQAAAADAAAAAwAAAAQAAAADAAAAAwAAAAQAAAAHAAAAAwAAAAYAAAADAAAACQAAAAYAAAAOAAAABQAAAA0AAAAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AAAANAAAABQAAAA4AAAAGAAAACQAAAAMAAAAGAAAAAwAAAAcAAAAEAAAAAwAAAAMAAAAEAAAAAwAAAAMAAAAEAAAABQAAAAEAAAADAAAABQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":3},{"binCounts":{"_type":"ndarray","data_b64":"BQAAAAYAAAAEAAAABQAAAAQAAAACAAAAAQAAAAIAAAADAAAABQAAAAMAAAAHAAAABQAAAAYAAAAFAAAABQAAAAMAAAAFAAAACwAAAAkAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAJAAAACwAAAAUAAAADAAAABQAAAAUAAAAGAAAABQAAAAcAAAADAAAABQAAAAMAAAACAAAAAQAAAAIAAAAEAAAABQAAAAQAAAAGAAAABQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":4},{"binCounts":{"_type":"ndarray","data_b64":"BQAAAAgAAAACAAAAAgAAAAQAAAAEAAAABAAAAAMAAAAEAAAABwAAAAQAAAAEAAAAAwAAAAQAAAACAAAABQAAAAkAAAAFAAAABQAAAAkAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAJAAAABQAAAAUAAAAJAAAABQAAAAIAAAAEAAAAAwAAAAQAAAAEAAAABwAAAAQAAAADAAAABAAAAAQAAAAEAAAAAgAAAAIAAAAIAAAABQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":5},{"binCounts":{"_type":"ndarray","data_b64":"BAAAAAYAAAAEAAAABAAAAAIAAAABAAAAAQAAAAEAAAAGAAAAAgAAAAMAAAAFAAAAAwAAAAEAAAAIAAAAAgAAAAQAAAAGAAAACwAAAAcAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAHAAAACwAAAAYAAAAEAAAAAgAAAAgAAAABAAAAAwAAAAUAAAADAAAAAgAAAAYAAAABAAAAAQAAAAEAAAACAAAABAAAAAQAAAAGAAAABAAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":6},{"binCounts":{"_type":"ndarray","data_b64":"AQAAAAIAAAAFAAAABwAAAAUAAAACAAAABwAAAAMAAAAJAAAABgAAAAMAAAADAAAABAAAAAYAAAACAAAABAAAAAIAAAAFAAAABwAAAA0AAAALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsAAAANAAAABwAAAAUAAAACAAAABAAAAAIAAAAGAAAABAAAAAMAAAADAAAABgAAAAkAAAADAAAABwAAAAIAAAAFAAAABwAAAAUAAAACAAAAAQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":7},{"binCounts":{"_type":"ndarray","data_b64":"AAAAAAYAAAAEAAAAAgAAAAMAAAAEAAAABgAAAAQAAAAHAAAAAwAAAAUAAAAHAAAAAwAAAAcAAAAHAAAAAgAAAAcAAAAGAAAACAAAAAcAAAAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYAAAAHAAAACAAAAAYAAAAHAAAAAgAAAAcAAAAHAAAAAwAAAAcAAAAFAAAAAwAAAAcAAAAEAAAABgAAAAQAAAADAAAAAgAAAAQAAAAGAAAAAAAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":8},{"binCounts":{"_type":"ndarray","data_b64":"AwAAAAIAAAABAAAABAAAAAQAAAAFAAAAAgAAAAMAAAAGAAAAAwAAAAMAAAACAAAAAwAAAAYAAAAGAAAABgAAAAIAAAAHAAAABwAAAAgAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAIAAAABwAAAAcAAAACAAAABgAAAAYAAAAGAAAAAwAAAAIAAAADAAAAAwAAAAYAAAADAAAAAgAAAAUAAAAEAAAABAAAAAEAAAACAAAAAwAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":9},{"binCounts":{"_type":"ndarray","data_b64":"BQAAAAEAAAAAAAAAAwAAAAIAAAAFAAAAAgAAAAUAAAACAAAABgAAAAcAAAADAAAAAgAAAAIAAAALAAAABAAAAAcAAAAKAAAAAwAAAAsAAAALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAsAAAALAAAAAwAAAAoAAAAHAAAABAAAAAsAAAACAAAAAgAAAAMAAAAHAAAABgAAAAIAAAAFAAAAAgAAAAUAAAACAAAAAwAAAAAAAAABAAAABQAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":10},{"binCounts":{"_type":"ndarray","data_b64":"AwAAAAMAAAACAAAAAgAAAAYAAAADAAAAAwAAAAIAAAAHAAAAAwAAAAMAAAACAAAABgAAAAUAAAAFAAAAAwAAAAQAAAALAAAABgAAAAkAAAAKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAJAAAABgAAAAsAAAAEAAAAAwAAAAUAAAAFAAAABgAAAAIAAAADAAAAAwAAAAcAAAACAAAAAwAAAAMAAAAGAAAAAgAAAAIAAAADAAAAAwAAAA==","dtype":"int32","shape":[49]},"binEdgesSec":{"_type":"ndarray","data_b64":"ObTIvBKDwLzsUbi8xSCwvJ7vp7x3vp+8UI2XvClcj7wCK4e8tvN9vGiRbbwbL128zcxMvH9qPLwxCCy846UbvJZDC7yPwvW79P3Uu1g5tLu8dJO7QmBluwrXI7umm8S6bxIDum8SAzqmm8Q6CtcjO0JgZTu8dJM7WDm0O/T91DuPwvU7lkMLPOOlGzwxCCw8f2o8PM3MTDwbL108aJFtPLbzfTwCK4c8KVyPPFCNlzx3vp88nu+nPMUgsDzsUbg8EoPAPDm0yDw=","dtype":"float32","shape":[50]},"unitId":11}],"type":"Autocorrelograms"}`)
-        // don't deserialize here because Buffer behaves differently in electron
-        return ret
+    }
+
+    async function getTaskReturnValue(o: {taskName: string, taskJobId: string}) {
+        const {taskName, taskJobId} = o
+        model.send({type: 'loadTaskReturnValue', taskName, taskJobId}, () => {})
+        return new Promise<string | undefined>((resolve, reject) => {
+            onTaskReturnValue({taskName, taskJobId}, (data: string | undefined) => {
+                resolve(data ? JSON.parse(data) : undefined)
+            })
+        })
     }
 
     const handleFigurlRequest = async (req: FigurlRequest): Promise<FigurlResponse | undefined> => {
@@ -61,13 +95,47 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
                 fileData
             }
         }
+        else if (req.type === 'initiateTask') {
+            const {taskInput, taskName, taskType} = req
+            const taskJobId = taskType === 'calculation' ? (
+                sha1OfObject({taskName, taskInput})
+            ) : (
+                sha1OfString(randomAlphaString(100))
+            )
+
+            if (taskType === 'calculation') {
+                // see if already finished
+                const returnValue = await getTaskReturnValue({taskName, taskJobId: taskJobId.toString()})
+                if (returnValue !== undefined) {
+                    // already finished, no pubsub needed
+                    return {
+                        type: 'initiateTask',
+                        taskJobId: taskJobId.toString(),
+                        status: 'finished',
+                        returnValue
+                    }
+                }
+            }
+
+            model.send({type: 'requestTask', taskType, taskName, taskInput, taskJobId}, () => {})
+
+            const ret: InitiateTaskResponse = {
+                type: 'initiateTask',
+                taskJobId: taskJobId.toString(),
+                status: 'waiting'
+            }
+            return ret
+        }
         else return undefined
+    }
+    const onTaskStatusUpdate = (callback: (a: {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, errorMessage?: string}) => void) => {
+        taskStatusUpdateCallbacks.push(callback)
     }
     return {
         setQueryParameters,
         handleFigurlRequest,
-        onTaskStatusUpdate: (callback: (a: {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, errorMessage?: string}) => void) => {},
-        getTaskReturnValue: async (a: {taskName: string, taskJobId: string}): Promise<any | undefined> => {}
+        onTaskStatusUpdate,
+        getTaskReturnValue
     }
 }
 
