@@ -36,6 +36,14 @@
             "presentation": {
                 "clear": true
             }
+        },
+        {
+            "label": "Watch javascript (dev)",
+            "type": "shell",
+            "command": "bash -ic .vscode/tasks/watch_js_dev.sh",
+            "presentation": {
+                "clear": true
+            }
         }
     ]
 }

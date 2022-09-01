@@ -7,6 +7,10 @@ import {
   ISerializers,
 } from '@jupyter-widgets/base';
 
+import React from 'react';
+import ReactDOM from 'react-dom';
+import TestWidget from './TestWidget';
+
 import { MODULE_NAME, MODULE_VERSION } from './version';
 
 // Import the CSS
@@ -41,13 +45,23 @@ export class FigurlFigureModel extends DOMWidgetModel {
 
 export class FigurlFigureView extends DOMWidgetView {
   render() {
-    this.el.classList.add('custom-widget');
+    this.el.classList.add('custom-widget')
 
-    this.value_changed();
-    this.model.on('change:value', this.value_changed, this);
+    this.value_changed()
+    this.model.on('change:value', this.value_changed, this)
+    
+
+    // this.el.innerHTML = '<div style="position:absolute;width:300px;height:300px;background:green;" />'
+
+    const component = React.createElement(TestWidget, {model: this.model})
+
+    ReactDOM.render(component, this.el)
   }
 
   value_changed() {
-    this.el.textContent = this.model.get('value');
+    // this.el.innerHTML = `
+    //   <iframe src="https://www.figurl.org/f?v=gs://figurl/draculus-1&d=sha1://2b9330656b2cf1993716cd615950754945ea16d0&project=lqhzprbdrq&hide=1&label=draculus%20sortingview%20example" />
+    // `;
+    // this.el.textContent = this.model.get('value') + ' test4';
   }
 }
