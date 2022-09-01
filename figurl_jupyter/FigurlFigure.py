@@ -9,7 +9,7 @@ TODO: Add module docstring
 """
 
 from ipywidgets import DOMWidget
-from traitlets import Unicode
+from traitlets import Unicode, Int
 import kachery_cloud as kcl
 from ._frontend import module_name, module_version
 
@@ -27,8 +27,9 @@ class FigurlFigure(DOMWidget):
     # traitlets
     view_uri = Unicode('').tag(sync=True)
     data_uri = Unicode('').tag(sync=True)
+    height = Int(0).tag(sync=True)
 
-    def __init__(self, *, view_uri: str, data_uri: str, download: bool=False):
+    def __init__(self, *, view_uri: str, data_uri: str, height: int=600, download: bool=False):
         DOMWidget.__init__(self)
 
         def on_message(widget, content, buffers):
@@ -43,6 +44,8 @@ class FigurlFigure(DOMWidget):
 
         self._view_uri = view_uri
         self._data_uri = data_uri
+        self._height = height
         self.set_trait('view_uri', view_uri)
         self.set_trait('data_uri', data_uri)
+        self.set_trait('height', height)
 

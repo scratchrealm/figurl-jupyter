@@ -8,6 +8,7 @@ type Props = {
     model: WidgetModel
     viewUri: string
     dataUri: string
+    height: number
 }
 
 const parentOrigin = window.location.protocol + '//' + window.location.host
@@ -15,9 +16,8 @@ import createElectronInterface from './createElectronInterface'
 import { WidgetModel } from '@jupyter-widgets/base';
 import { sleepMsec } from './sleepMsec';
 
-const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri}) => {
+const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height}) => {
     const [width, setWidth] = useState<number | undefined>(undefined)
-    const height = 600
     const iframeElement = useRef<HTMLIFrameElement | null>()
     const viewUrlBase = urlFromUri(viewUri)
     const viewUrl = viewUrlBase + '/index.html'
@@ -84,15 +84,16 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri}) => {
         })()
         return () => {canceled = true}
     }, [iframeElement])
+    const H = height || 400
     return (
         // important to use relative position rather than absolute (took me a while to figure that out)
-        <div style={{ position: 'relative', width: width || 0, height, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', width: width || 0, height: H, overflow: 'hidden' }}>
             <iframe
                 ref={e => { iframeElement.current = e }}
                 title="figure"
                 src={src}
                 width={width ? width - 15 : 0}
-                height={height - 15}
+                height={H - 15}
             />
         </div>
     );
