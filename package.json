@@ -1,6 +1,6 @@
 {
   "name": "figurl-jupyter",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "View figurl figures in jupyterlab",
   "keywords": [
     "jupyter",
