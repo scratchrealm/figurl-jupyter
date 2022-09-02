@@ -1,3 +1,5 @@
+* Do a fresh build: yarn run build
+
 * Remove the 'dev' entry in _version.py.
 
 * No need to update in package.json and _frontend.py if we did that correctly last release
