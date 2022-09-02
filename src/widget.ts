@@ -1,6 +1,13 @@
 // Copyright (c) Jeremy Magland
 // Distributed under the terms of the Modified BSD License.
 
+// This is a hack which prevents an error when importing crypto which uses util.js which tries to access process.env
+if (!(window as any).process) {
+  (window as any).process = {
+    env: {}
+  }
+}
+
 import {
   DOMWidgetModel,
   DOMWidgetView,

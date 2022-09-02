@@ -41,18 +41,22 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height
     }, [viewUri, dataUri, iframeElement, figureId, model])
     useEffect(() => {
 
-        function findAncestorElementWithClass(elmt: Element | undefined, className: string): Element | undefined {
+        function findAncestorElementWithClass(elmt: Element | undefined, classNames: string[]): Element | undefined {
             if (!elmt) return undefined
-            if (elmt.className.split(' ').includes(className)) return elmt
-            return findAncestorElementWithClass(elmt.parentElement || undefined, className)
+            for (let className of classNames) {
+                if (elmt.className.split(' ').includes(className)) return elmt
+            }
+            return findAncestorElementWithClass(elmt.parentElement || undefined, classNames)
         }
-        function findDescendantElementWithClass(elmt: Element | undefined, className: string): Element | undefined {
+        function findDescendantElementWithClass(elmt: Element | undefined, classNames: string[]): Element | undefined {
             if (!elmt) return undefined
-            if (elmt.className.split(' ').includes(className)) return elmt
+            for (let className of classNames) {
+                if (elmt.className.split(' ').includes(className)) return elmt
+            }
             const childElements = elmt.children
             for (let i = 0; i < childElements.length; i++) {
                 const childElement = childElements[i]
-                const d = findDescendantElementWithClass(childElement, className)
+                const d = findDescendantElementWithClass(childElement, classNames)
                 if (d) return d
             }
             return undefined
@@ -65,8 +69,9 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height
             while (!canceled) {
                 // It is tricky to compute the width properly
                 // After thoroughly inspecting the DOM, I think this is the best way
-                const outputArea = findAncestorElementWithClass(iframeElement.current || undefined, 'jp-Cell-outputArea')
-                const outputAreaPrompt = findDescendantElementWithClass(outputArea, 'jp-OutputArea-prompt')
+                // support both jupyter lab and jupyter notebook
+                const outputArea = findAncestorElementWithClass(iframeElement.current || undefined, ['jp-Cell-outputArea', 'output_area'])
+                const outputAreaPrompt = findDescendantElementWithClass(outputArea, ['jp-OutputArea-prompt', 'output_prompt'])
                 const W1 = outputArea?.getBoundingClientRect()?.width
                 const W2 = outputAreaPrompt?.getBoundingClientRect()?.width
                 if ((W1) && (W2)) {
@@ -77,6 +82,13 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height
                         setWidth(newWidth)
                     }
                 }
+
+                // this is needed because jup notebook has a lightseagreen background color for some reason on .custom-widget
+                const customWidgetElement = findAncestorElementWithClass(iframeElement.current || undefined, ['custom-widget'])
+                if (customWidgetElement) {
+                    (customWidgetElement as HTMLElement).style['backgroundColor'] = 'white'
+                }
+
                 await sleepMsec(delay)
                 delay += 100
                 if (delay > 5000) delay = 5000
