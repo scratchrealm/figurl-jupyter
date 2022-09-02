@@ -71,11 +71,12 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height
                 // After thoroughly inspecting the DOM, I think this is the best way
                 // support both jupyter lab and jupyter notebook
                 const outputArea = findAncestorElementWithClass(iframeElement.current || undefined, ['jp-Cell-outputArea', 'output_area'])
-                const outputAreaPrompt = findDescendantElementWithClass(outputArea, ['jp-OutputArea-prompt', 'output_prompt'])
+                const outputAreaPrompt = findDescendantElementWithClass(outputArea, ['jp-OutputArea-prompt', 'output_prompt', 'prompt'])
                 const W1 = outputArea?.getBoundingClientRect()?.width
                 const W2 = outputAreaPrompt?.getBoundingClientRect()?.width
+                let newWidth = 800 // fallback
                 if ((W1) && (W2)) {
-                    const newWidth = W1 - W2
+                    newWidth = W1 - W2
                     if (newWidth !== lastWidth) {
                         lastWidth = newWidth
                         delay = 500 // detect rapidly once again
