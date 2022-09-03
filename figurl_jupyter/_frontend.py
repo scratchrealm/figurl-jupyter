@@ -9,4 +9,4 @@ Information about the frontend package of the widgets.
 """
 
 module_name = "figurl-jupyter"
-module_version = "^0.2.6"
+module_version = "^0.2.7"
