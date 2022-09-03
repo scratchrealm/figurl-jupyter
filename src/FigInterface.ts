@@ -10,7 +10,9 @@ export type ElectronInterface = {
     setQueryParameters: (q: QueryParameters) => Promise<void>,
     handleFigurlRequest: (req: FigurlRequest) => Promise<FigurlResponse | undefined>,
     onTaskStatusUpdate: (callback: (a: {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, errorMessage?: string}) => void) => void,
-    getTaskReturnValue: (a: {taskName: string, taskJobId: string}) => Promise<any | undefined>
+    getTaskReturnValue: (a: {taskName: string, taskJobId: string}) => Promise<any | undefined>,
+    sendMessageToBackend: (message: any) => void,
+    onMessageFromBackend: (callback: (message: any) => void) => void
 }
 
 class FigInterface {
@@ -79,12 +81,18 @@ class FigInterface {
                         })()
                     })
                 }
+                else if (msg.type === 'messageToBackend') {
+                    this.a.electronInterface.sendMessageToBackend(msg.message)
+                }
             }
         })
     }
     async initialize(queryParameters: QueryParameters) {
         this.#viewUrl = queryParameters.viewUri ? urlFromUri(queryParameters.viewUri) : undefined
         await this.a.electronInterface.setQueryParameters(queryParameters)
+        this.a.electronInterface.onMessageFromBackend(message => {
+            this._sendMessageToChild({type: 'messageToFrontend', message})
+        })
     }
     _sendMessageToChild(msg: MessageToChild) {
         if (!this.a.iframeElement.current) {

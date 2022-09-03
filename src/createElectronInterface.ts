@@ -1,5 +1,4 @@
 import { WidgetModel } from "@jupyter-widgets/base"
-import deserializeReturnValue from "./deserializeReturnValue"
 import { ElectronInterface } from "./FigInterface"
 import QueryParameters from "./QueryParameters"
 import randomAlphaString from "./util/randomAlphaString"
@@ -56,6 +55,11 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
             const {taskType, taskName, taskJobId, status, error} = msg as {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, error: string | undefined}
             for (let cb of taskStatusUpdateCallbacks) {
                 cb({taskType, taskName, taskJobId, status, errorMessage: error})
+            }
+        }
+        else if (msg.type === 'messageToFrontend') {
+            for (let cb of onMessageFromBackendCallbacks) {
+                cb(msg.message)
             }
         }
     })
@@ -131,11 +135,20 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
     const onTaskStatusUpdate = (callback: (a: {taskType: TaskType, taskName: string, taskJobId: string, status: TaskJobStatus, errorMessage?: string}) => void) => {
         taskStatusUpdateCallbacks.push(callback)
     }
+    const sendMessageToBackend = (message: any) => {
+        model.send({type: 'messageToBackend', message}, () => {})
+    }
+    const onMessageFromBackendCallbacks: ((message: any) => void)[] = []
+    const onMessageFromBackend = (callback: (message: any) => void) => {
+        onMessageFromBackendCallbacks.push(callback)
+    }
     return {
         setQueryParameters,
         handleFigurlRequest,
         onTaskStatusUpdate,
-        getTaskReturnValue
+        getTaskReturnValue,
+        sendMessageToBackend,
+        onMessageFromBackend
     }
 }
 

@@ -9,7 +9,7 @@ TODO: Add module docstring
 """
 
 import os
-from typing import Dict
+from typing import Callable, Dict, List
 from ipywidgets import DOMWidget
 from traitlets import Unicode, Int
 import kachery_cloud as kcl
@@ -35,6 +35,8 @@ class FigurlFigure(DOMWidget):
 
     def __init__(self, *, view_uri: str, data_uri: str, height: int=600, download: bool=False, task_handlers: Dict[str, TaskHandler]={}):
         DOMWidget.__init__(self)
+
+        self._on_message_from_frontend_callbacks: List[Callable] = []
 
         def on_message(widget, content, buffers):
             widget.send({'type': 'reply', 'message': content})
@@ -99,6 +101,11 @@ class FigurlFigure(DOMWidget):
                         'taskJobId': task_job_id,
                         'status': 'finished'
                     })
+            elif type0 == 'messageToBackend':
+                message = content['message']
+                for cb in self._on_message_from_frontend_callbacks:
+                    cb(message)
+
 
         self.on_msg(on_message)
 
@@ -109,3 +116,7 @@ class FigurlFigure(DOMWidget):
         self.set_trait('data_uri', data_uri)
         self.set_trait('height', height)
 
+    def send_message_to_frontend(self, message: dict):
+        self.send({'type': 'messageToFrontend', 'message': message})
+    def on_message_from_frontend(self, callback: Callable):
+        self._on_message_from_frontend_callbacks.append(callback)
