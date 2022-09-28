@@ -47,18 +47,23 @@ class FigInterface {
                 })
             })()
         })
+        console.log('--- DBG Adding event listener')
         window.addEventListener('message', e => {
+            console.log('--- DBG Got message', e.data)
             const msg = e.data
             if (msg.figureId !== this.a.figureId) return
             if (isMessageToParent(msg)) {
                 if (msg.type === 'figurlRequest') {
+                    console.log('--- DBG Got figurlRequest', e.data)
                     this.a.electronInterface.handleFigurlRequest(msg.request).then(resp => {
                         ;(async () => {
                             if (resp) {
                                 // deserialize data here rather than in preload
                                 // because Buffer may behave differently in preload
                                 if (resp.type === 'getFigureData') {
+                                    console.log('--- DBG Got getFigureData request', e.data)
                                     resp.figureData = await deserializeReturnValue(resp.figureData)
+                                    console.log('--- DBG getFigureData sending response', resp.figureData)
                                 }
                                 if (resp.type === 'getFileData') {
                                     resp.fileData = await deserializeReturnValue(resp.fileData)
@@ -69,6 +74,7 @@ class FigInterface {
                                     }
                                 }
 
+                                console.log('--- DBG sending response to child', resp)
                                 this._sendMessageToChild({
                                     type: 'figurlResponse',
                                     requestId: msg.requestId,
