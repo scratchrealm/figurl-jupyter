@@ -9,6 +9,7 @@ type Props = {
     viewUri: string
     dataUri: string
     height: number
+    clientInfo: {clientId?: string, privateKey?: string, defaultProjectId?: string}
 }
 
 const parentOrigin = window.location.protocol + '//' + window.location.host
@@ -16,7 +17,7 @@ import createElectronInterface from './createElectronInterface'
 import { WidgetModel } from '@jupyter-widgets/base';
 import { sleepMsec } from './sleepMsec';
 
-const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height}) => {
+const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height, clientInfo}) => {
     const [width, setWidth] = useState<number | undefined>(undefined)
     const iframeElement = useRef<HTMLIFrameElement | null>()
     const viewUrlBase = urlFromUri(viewUri)
@@ -33,12 +34,12 @@ const FigureWidget: FunctionComponent<Props> = ({model, viewUri, dataUri, height
             viewUri,
             dataUri
         }
-        const electronInterface = createElectronInterface(model)
+        const electronInterface = createElectronInterface(model, clientInfo)
         const figInterface = new FigInterface({ electronInterface, figureId, iframeElement })
         figInterface.initialize(queryParameters).then(() => {
             setFigInterface(figInterface)
         })
-    }, [viewUri, dataUri, iframeElement, figureId, model])
+    }, [viewUri, dataUri, clientInfo, iframeElement, figureId, model])
     useEffect(() => {
 
         function findAncestorElementWithClass(elmt: Element | undefined, classNames: string[]): Element | undefined {

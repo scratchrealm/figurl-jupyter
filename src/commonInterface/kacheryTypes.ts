@@ -1,9 +1,187 @@
-import * as crypto from 'crypto';
-import validateObject, { isArrayOf, isBoolean, isJSONObject, isNumber, isObject, isObjectOf, isString, JSONObject, JSONValue, optional } from './validateObject';
-export { JSONValue } from './validateObject'
+import assert from 'assert';
+import crypto from 'crypto'
 
-const assert = (x: any) => {
-    if (!x) throw Error('Assertion error')
+export type JSONPrimitive = string | number | boolean | null;
+export type JSONValue = JSONPrimitive | JSONObject | JSONArray;
+export type JSONObject = { [member: string]: JSONValue };
+export interface JSONArray extends Array<JSONValue> {}
+export const isJSONObject = (x: any): x is JSONObject => {
+    if (!isObject(x)) return false
+    return isJSONSerializable(x)
+}
+export const isJSONValue = (x: any): x is JSONValue => {
+    return isJSONSerializable(x)
+}
+export const tryParseJsonObject = (x: string): JSONObject | null => {
+    let a: any
+    try {
+        a = JSON.parse(x)
+    }
+    catch {
+        return null
+    }
+    if (!isJSONObject(a)) return null
+    return a;
+}
+export const isJSONSerializable = (obj: any): boolean => {
+    if (typeof(obj) === 'string') return true
+    if (typeof(obj) === 'number') return true
+    if (!isObject(obj)) return false
+    const isPlainObject = (a: Object) => {
+        return Object.prototype.toString.call(a) === '[object Object]';
+    };
+    const isPlain = (a: any) => {
+      return (a === null) || (typeof a === 'undefined' || typeof a === 'string' || typeof a === 'boolean' || typeof a === 'number' || Array.isArray(a) || isPlainObject(a));
+    }
+    if (!isPlain(obj)) {
+      return false;
+    }
+    for (let property in obj) {
+      if (obj.hasOwnProperty(property)) {
+        if (!isPlain(obj[property])) {
+          return false;
+        }
+        if (obj[property] !== null) {
+            if (typeof obj[property] === "object") {
+                if (!isJSONSerializable(obj[property])) {
+                    return false;
+                }
+            }
+        }
+      }
+    }
+    return true;
+}
+
+// object
+export const isObject = (x: any): x is Object => {
+    return ((x !== null) && (typeof x === 'object'));
+}
+
+// string
+export const isString = (x: any): x is string => {
+    return ((x !== null) && (typeof x === 'string'));
+}
+
+// function
+export const isFunction = (x: any): x is Function => {
+    return ((x !== null) && (typeof x === 'function'));
+}
+
+// number
+export const isNumber = (x: any): x is number => {
+    return ((x !== null) && (typeof x === 'number'));
+}
+
+// null
+export const isNull = (x: any): x is null => {
+    return x === null;
+}
+
+// boolean
+export const isBoolean = (x: any): x is boolean => {
+    return ((x !== null) && (typeof x === 'boolean'));
+}
+
+// isOneOf
+export const isOneOf = (testFunctions: Function[]): ((x: any) => boolean) => {
+    return (x) => {
+        for (let tf of testFunctions) {
+            if (tf(x)) return true;
+        }
+        return false;
+    }
+}
+
+export const optional = (testFunctionOrSpec: Function | ValidateObjectSpec): ((x: any) => boolean) => {
+    if (isFunction(testFunctionOrSpec)) {
+        const testFunction: Function = testFunctionOrSpec
+        return (x) => {
+            return ((x === undefined) || (testFunction(x)));
+        }
+    }
+    else {
+        return (x) => {
+            const obj: ValidateObjectSpec = testFunctionOrSpec
+            return ((x === undefined) || (_validateObject(x, obj)))
+        }
+    }   
+}
+
+// isEqualTo
+export const isEqualTo = (value: any): ((x: any) => boolean) => {
+    return (x) => {
+        return x === value;
+    }
+}
+
+// isArrayOf
+export const isArrayOf = (testFunction: (x: any) => boolean): ((x: any) => boolean) => {
+    return (x) => {
+        if ((x !== null) && (Array.isArray(x))) {
+            for (let a of x) {
+                if (!testFunction(a)) return false;
+            }
+            return true;
+        }
+        else return false;
+    }
+}
+
+// isObjectOf
+export const isObjectOf = (keyTestFunction: (x: any) => boolean, valueTestFunction: (x: any) => boolean): ((x: any) => boolean) => {
+    return (x) => {
+        if (isObject(x)) {
+            for (let k in x) {
+                if (!keyTestFunction(k)) return false;
+                if (!valueTestFunction(x[k])) return false;
+            }
+            return true;
+        }
+        else return false;
+    }
+}
+
+export type ValidateObjectSpec = {[key: string]: ValidateObjectSpec | (Function & ((a: any) => any))}
+
+export const _validateObject = (x: any, spec: ValidateObjectSpec, opts?: {callback?: (x: string) => any, allowAdditionalFields?: boolean}): boolean => {
+    const o = opts || {}
+    if (!x) {
+        o.callback && o.callback('x is undefined/null.')
+        return false;
+    }
+    if (typeof(x) !== 'object') {
+        o.callback && o.callback('x is not an Object.')
+        return false;
+    }
+    for (let k in x) {
+        if (!(k in spec)) {
+            if (!o.allowAdditionalFields) {
+                o.callback && o.callback(`Key not in spec: ${k}`)
+                return false;
+            }
+        }
+    }
+    for (let k in spec) {
+        const specK = spec[k];
+        if (isFunction(specK)) {
+            if (!specK(x[k])) {
+                o.callback && o.callback(`Problem validating: ${k}`)
+                return false;
+            }
+        }
+        else {
+            if (!(k in x)) {
+                o.callback && o.callback(`Key not in x: ${k}`)
+                return false;
+            }
+            if (!_validateObject(x[k], specK as ValidateObjectSpec, {callback: o.callback})) {
+                o.callback && o.callback(`Value of key > ${k} < itself failed validation.`)
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 // objectToMap and mapToObject
@@ -122,7 +300,7 @@ export interface Address {
     url?: UrlString
 }
 export const isAddress = (x: any): x is Address => {
-    if (!validateObject(x, {
+    if (!_validateObject(x, {
         hostName: optional(isHostName),
         port: optional(isPort),
         url: optional(isUrlString)
@@ -191,7 +369,7 @@ export interface KeyPair {
     privateKey: PrivateKey
 }
 export const isKeyPair = (x: any) : x is KeyPair => {
-    return validateObject(x, {
+    return _validateObject(x, {
         publicKey: isPublicKey,
         privateKey: isPrivateKey
     });
@@ -411,7 +589,7 @@ export interface FileKey {
 }
 
 export const isFileKey = (x: any): x is FileKey => {
-    return validateObject(x, {
+    return _validateObject(x, {
         sha1: isSha1Hash,
         manifestSha1: optional(isSha1Hash),
         chunkOf: optional({
@@ -438,7 +616,7 @@ export interface FindLiveFeedResult {
     nodeId: NodeId
 }
 export const isFindLiveFeedResult = (x: any): x is FindLiveFeedResult => {
-    return validateObject(x, {
+    return _validateObject(x, {
         nodeId: isNodeId
     });
 }
@@ -450,7 +628,7 @@ export interface FindFileResult {
     fileSize: ByteCount
 }
 export const isFindFileResult = (x: any): x is FindFileResult => {
-    if (!validateObject(x, {
+    if (!_validateObject(x, {
         nodeId: isNodeId,
         fileKey: isFileKey,
         fileSize: isByteCount
@@ -539,7 +717,7 @@ export interface SignedSubfeedMessage {
     signature: Signature
 }
 export const isSignedSubfeedMessage = (x: any): x is SignedSubfeedMessage => {
-    if (! validateObject(x, {
+    if (! _validateObject(x, {
         body: {
             previousSignature: optional(isSignature),
             messageNumber: isNumber,
@@ -610,7 +788,7 @@ export interface SubfeedWatch {
     channelName: ChannelName
 }
 export const isSubfeedWatch = (x: any): x is SubfeedWatch => {
-    return validateObject(x, {
+    return _validateObject(x, {
         feedId: isFeedId,
         subfeedHash: isSubfeedHash,
         position: isSubfeedPosition,
@@ -710,7 +888,7 @@ export interface FileManifestChunk {
     sha1: Sha1Hash
 }
 export const isFileManifestChunk = (x: any): x is FileManifestChunk => {
-    return validateObject(x, {
+    return _validateObject(x, {
         start: isByteCount,
         end: isByteCount,
         sha1: isSha1Hash
@@ -723,18 +901,18 @@ export interface FileManifest {
     chunks: FileManifestChunk[]
 }
 export const isFileManifest = (x: any): x is FileManifest => {
-    return validateObject(x, {
+    return _validateObject(x, {
         size: isByteCount,
         sha1: isSha1Hash,
         chunks: isArrayOf(isFileManifestChunk)
     })
 }
 
-// ChannelConfigUrl
-export interface ChannelConfigUrl extends String {
-    __channelConfigUrl__: never
+// ChannelUrl
+export interface ChannelUrl extends String {
+    __channelUrl__: never
 }
-export const isChannelConfigUrl = (x: any): x is ChannelConfigUrl => {
+export const isChannelUrl = (x: any): x is ChannelUrl => {
     if (!isString(x)) return false;
     if ((x.startsWith('http://') || (x.startsWith('https://')))) {
         if (x.length > 500) return false
@@ -744,8 +922,8 @@ export const isChannelConfigUrl = (x: any): x is ChannelConfigUrl => {
         return false
     }
 }
-export const channelConfigUrl = (x: string): ChannelConfigUrl => {
-    if (!isChannelConfigUrl(x)) throw Error(`Not a valid channel config url string: ${x}`)
+export const channelUrl = (x: string): ChannelUrl => {
+    if (!isChannelUrl(x)) throw Error(`Not a valid channel config url string: ${x}`)
     return x
 }
 
@@ -795,7 +973,7 @@ export type UserConfig = {
 }
 
 export const isUserConfig = (x: any): x is UserConfig => {
-    return validateObject(x, {
+    return _validateObject(x, {
         admin: optional(isBoolean)
     }, {
         allowAdditionalFields: true
