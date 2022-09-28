@@ -35,7 +35,8 @@ export class FigurlFigureModel extends DOMWidgetModel {
       _view_module_version: FigurlFigureModel.view_module_version,
       view_uri: '',
       data_uri: '',
-      height: 0
+      height: 0,
+      clientInfo: ''
     };
   }
 
@@ -60,7 +61,7 @@ export class FigurlFigureView extends DOMWidgetView {
     this.model.on('change:view_uri', this.onChange, this)
     this.model.on('change:data_uri', this.onChange, this)
     this.model.on('change:height', this.onChange, this)
-    
+    this.model.on('change:clientInfo', this.onChange, this)
 
     // this.el.innerHTML = '<div style="position:absolute;width:300px;height:300px;background:green;" />'
   }
@@ -69,8 +70,10 @@ export class FigurlFigureView extends DOMWidgetView {
     const viewUri = this.model.get('view_uri')
     const dataUri = this.model.get('data_uri')
     const height = this.model.get('height')
-    if ((viewUri) && (dataUri)) {
-      const component = React.createElement(FigureWidget, {model: this.model, viewUri, dataUri, height})
+    const clientInfoJson = this.model.get('clientInfo')
+    const clientInfo = clientInfoJson ? JSON.parse(clientInfoJson) : undefined
+    if ((viewUri) && (dataUri) && (height) && (clientInfo)) {
+      const component = React.createElement(FigureWidget, {model: this.model, viewUri, dataUri, height, clientInfo})
       ReactDOM.render(component, this.el)
     }
     else {

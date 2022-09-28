@@ -1,12 +1,16 @@
 import { WidgetModel } from "@jupyter-widgets/base"
 import { ElectronInterface } from "./FigInterface"
 import QueryParameters from "./QueryParameters"
+import { hexToPrivateKey, hexToPublicKey, signMessage } from "./commonInterface/crypto/signatures"
 import randomAlphaString from "./util/randomAlphaString"
-import { FigurlRequest, FigurlResponse, InitiateTaskResponse } from "./viewInterface/FigurlRequestTypes"
-import { sha1OfObject, sha1OfString } from "./viewInterface/kacheryTypes"
+import { FigurlRequest, FigurlResponse, InitiateTaskResponse, StoreFileResponse } from "./viewInterface/FigurlRequestTypes"
+import { PrivateKeyHex, PublicKeyHex, sha1OfObject, sha1OfString } from "./viewInterface/kacheryTypes"
 import { TaskJobStatus, TaskType } from "./viewInterface/MessageToChildTypes"
+import axios from 'axios'
+import { KacherycloudRequest, KacherycloudResponse } from "./types/KacherycloudRequest"
+import { NodeId } from "./commonInterface/kacheryTypes"
 
-const createElectronInterface = (model: WidgetModel): ElectronInterface => {
+const createElectronInterface = (model: WidgetModel, clientInfo: {clientId?: string, privateKey?: string, defaultProjectId?: string}): ElectronInterface => {
 
     let queryParameters: QueryParameters = {}
 
@@ -127,6 +131,59 @@ const createElectronInterface = (model: WidgetModel): ElectronInterface => {
                 type: 'initiateTask',
                 taskJobId: taskJobId.toString(),
                 status: 'waiting'
+            }
+            return ret
+        }
+        else if (req.type === 'storeFile') {
+            const {fileData} = req
+            const projectId = req.projectId || clientInfo.defaultProjectId
+            if (!projectId) {
+                throw Error('Cannot store file. No project ID.')
+            }
+            if (!clientInfo.clientId) {
+                throw Error('Cannot store file. No client ID.')
+            }
+            if (!clientInfo.privateKey) {
+                throw Error('Cannot store file. No private key.')
+            }
+            const sha1 = sha1OfString(fileData)
+            const uri = `sha1://${sha1}`
+            const payload = {
+                type: 'initiateFileUpload' as 'initiateFileUpload',
+                size: fileData.length,
+                hashAlg: 'sha1' as 'sha1',
+                hash: sha1.toString(),
+                projectId: projectId,
+                timestamp: Date.now()
+            }
+            const kacheryCloudUrl = `http://kacheryhub.org/api/kacherycloud`
+            const publicKey = hexToPublicKey(clientInfo.clientId as any as PublicKeyHex)
+            const privateKey = hexToPrivateKey(clientInfo.privateKey as any as PrivateKeyHex)
+            const kacheryCloudRequest: KacherycloudRequest = {
+                payload,
+                fromClientId: clientInfo.clientId as any as NodeId,
+                signature: await signMessage(payload, {publicKey, privateKey})
+            }
+            const resp = await axios.post(kacheryCloudUrl, kacheryCloudRequest)
+            const kacheryCloudResponse: KacherycloudResponse = resp.data
+            if (kacheryCloudResponse.type !== 'initiateFileUpload') {
+                throw Error('Unexpected response in initiateFileUpload')
+            }
+            let ret: StoreFileResponse
+            if (kacheryCloudResponse.alreadyExists) {
+                ret = {type: 'storeFile', uri}
+            }
+            else if (kacheryCloudResponse.alreadyPending) {
+                throw Error('Cannot handle case for initiateFileUpload: alreadyPending')
+            }
+            else {
+                const uploadUrl = kacheryCloudResponse.signedUploadUrl
+                if (!uploadUrl) throw Error('No upload URL')
+                await axios.put(uploadUrl, fileData)
+                ret = {
+                    type: 'storeFile',
+                    uri
+                }
             }
             return ret
         }
