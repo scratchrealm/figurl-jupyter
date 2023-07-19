@@ -14,7 +14,6 @@ from ipywidgets import DOMWidget
 from traitlets import Unicode, Int
 import kachery_cloud as kcl
 from ._frontend import module_name, module_version
-from kachery_cloud.TaskBackend.TaskBackend import TaskHandler
 from kachery_cloud._json_stringify_deterministic import _json_stringify_deterministic
 from kachery_cloud._serialize import _serialize
 
@@ -33,7 +32,7 @@ class FigurlFigure(DOMWidget):
     data_uri = Unicode('').tag(sync=True)
     height = Int(0).tag(sync=True)
 
-    def __init__(self, *, view_uri: str, data_uri: str, height: int=600, download: bool=False, task_handlers: Dict[str, TaskHandler]={}):
+    def __init__(self, *, view_uri: str, data_uri: str, height: int=600, download: bool=False, task_handlers={}):
         DOMWidget.__init__(self)
 
         self._on_message_from_frontend_callbacks: List[Callable] = []
